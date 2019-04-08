@@ -60,7 +60,15 @@ prep_shem <- function(prod_shem, liste_usines, noms_col)
 {
   colnames(prod_shem) <- noms_col #On renomme les colonnes
   prod_shem[, liste_usines] = apply(prod_shem[, liste_usines], 2, as.numeric) #On force tout en numérique, même si ça échoue lamentablement
-  prod_shem = mutate(prod_shem, Dates = as.POSIXct(Dates, format = "%d/%m/%Y %H:%M")) #Formatage des dates
+  prod_shem <- prod_shem %>% 
+    mutate(Dates = as.POSIXct(Dates, format = "%d/%m/%Y %H:%M")) %>%  #Formatage des dates
+    mutate("temp_base" = "base") %>% #base 24/24 365
+    mutate("temp_peak" = ifelse(hour(Dates) >= 8 & hour(Dates) < 20, "_peak", "")) %>% #peak entre 8h et 20h 365
+    mutate("temp_hc_hp" = ifelse(hour(Dates) >= 6 & hour(Dates) < 22, "_hp", "_hc")) %>% #heures de pointe entre 6 et 22h, heures creuses sinon, 365
+    mutate("temp_ete_hiver" = ifelse(month(Dates) >= 4 & month(Dates) <= 10, "_ete", "_hiver")) %>%  #ete d'avril à octobre inclus, hiver sinon
+    mutate("temp_super_p" = ifelse((month(Dates) <= 3   |   month(Dates) >= 12)     &     ((hour(Dates) >= 9 & hour(Dates) < 11)  |  (hour(Dates) >= 18 & hour(Dates) < 20))  , "_spp", "")) %>% #heures de super pointe 9h-11h et 18h-20h de décembre à février inclus 
+    mutate("Tranche" = paste(temp_base, temp_peak, temp_hc_hp, temp_ete_hiver, temp_super_p, sep = "")) %>% 
+    select(-starts_with("temp")) # Suppression des colonnes temporaires base, peak, etc.
   # prod_shem[is.na(prod_shem)] <- 0 #On remplace les NA par des 0
   # prod_shem[is.character(prod_shem)] <- 0 #On remplace les caractères par des 0
   # prod_shem[!is.numeric(prod_shem)] <- 0
