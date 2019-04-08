@@ -62,17 +62,15 @@ prep_shem <- function(prod_shem, liste_usines, noms_col)
   prod_shem[, liste_usines] = apply(prod_shem[, liste_usines], 2, as.numeric) #On force tout en numérique, même si ça échoue lamentablement
   prod_shem <- prod_shem %>% 
     mutate(Dates = as.POSIXct(Dates, format = "%d/%m/%Y %H:%M")) %>%  #Formatage des dates
-    mutate("temp_base" = "base") %>% #base 24/24 365
-    mutate("temp_peak" = ifelse(hour(Dates) >= 8 & hour(Dates) < 20, "_peak", "")) %>% #peak entre 8h et 20h 365
-    mutate("temp_hc_hp" = ifelse(hour(Dates) >= 6 & hour(Dates) < 22, "_hp", "_hc")) %>% #heures de pointe entre 6 et 22h, heures creuses sinon, 365
-    mutate("temp_ete_hiver" = ifelse(month(Dates) >= 4 & month(Dates) <= 10, "_ete", "_hiver")) %>%  #ete d'avril à octobre inclus, hiver sinon
-    mutate("temp_super_p" = ifelse((month(Dates) <= 3   |   month(Dates) >= 12)     &     ((hour(Dates) >= 9 & hour(Dates) < 11)  |  (hour(Dates) >= 18 & hour(Dates) < 20))  , "_spp", "")) %>% #heures de super pointe 9h-11h et 18h-20h de décembre à février inclus 
-    mutate("Tranche" = paste(temp_base, temp_peak, temp_hc_hp, temp_ete_hiver, temp_super_p, sep = "")) %>% 
+    mutate("temp_peak" = ifelse(hour(Dates) >= 8 & hour(Dates) < 20, "peak", "base")) %>% #peak entre 8h et 20h 365
+    mutate("temp_hc_hp" = ifelse(hour(Dates) >= 6 & hour(Dates) < 22, "HP", "HC")) %>% #heures de pointe entre 6 et 22h, heures creuses sinon, 365
+    mutate("temp_ete_hiver" = ifelse(month(Dates) >= 4 & month(Dates) <= 10, "été", "hiver")) %>%  #ete d'avril à octobre inclus, hiver sinon
+    mutate("temp_super_p" = ifelse((month(Dates) <= 3   |   month(Dates) >= 12)     &     ((hour(Dates) >= 9 & hour(Dates) < 11)  |  (hour(Dates) >= 18 & hour(Dates) < 20))  , "SPP", "")) %>% #heures de super pointe 9h-11h et 18h-20h de décembre à février inclus 
+    mutate("Tranche" = paste(temp_peak, temp_hc_hp, temp_ete_hiver, temp_super_p, sep = " ")) %>% #Concaténation des tranches dans une seule colonne
     select(-starts_with("temp")) # Suppression des colonnes temporaires base, peak, etc.
   # prod_shem[is.na(prod_shem)] <- 0 #On remplace les NA par des 0
   # prod_shem[is.character(prod_shem)] <- 0 #On remplace les caractères par des 0
   # prod_shem[!is.numeric(prod_shem)] <- 0
-  return(prod_shem)
 }
 
 # ------------------------ Selection des colonnes
@@ -80,7 +78,7 @@ prep_shem <- function(prod_shem, liste_usines, noms_col)
 selection_var <- function(prix, gpmt, noms_colonnes, attributs_col)
 {
   selec_gpmt <- c(prix, gpmt)
-  var_selec <- c("Dates", "Annee", "Jour", "Semaine", "Mois") #On sélectionne au moins la date et la granularite si elle existe
+  var_selec <- c("Dates", "Tranche", "Annee", "Jour", "Semaine", "Mois") #On sélectionne au moins la date et la granularite si elle existe ainsi que la tranche tarifaire
   for(nom_colonne in noms_colonnes) {
     if(attributs_col["noms_gpmt", nom_colonne] %in% selec_gpmt) {var_selec <- c(var_selec, nom_colonne)}
   }
@@ -101,21 +99,28 @@ f_granu <- function(x, granularity)
 
 #---------- Filtre sur la granularite
 
-
-filter_granu <- function(prod_shem_prod, granu, date_debut, date_fin, f_calcul, var_selec, liste_var)
+filter_granu <- function(prod_shem_prod, granu, date_debut, date_fin, f_calcul, liste_var)
 {
-  if(granu != "Heure") {     #avec filtre granuralite
-    prod_shem_prod %>% 
+  if(granu != "Heure") {     #avec filtre granularite
+    prod_shem_prod %>%
       filter(Dates >= as.POSIXct(date_debut) & Dates <= as.POSIXct(date_fin)) %>%
       group_by(Annee = lubridate::year(Dates), !!granu := f_granu(Dates, granu)) %>% #!!granu := permet de nommer dynamiquement la colonne de granularite (jour, semaine...)
-      summarise_at(liste_var, f_calcul) %>%
-      select(one_of(var_selec))
+      summarise_at(liste_var, f_calcul)
   }
-  else {                     # sans filtre granuralite
-    prod_shem_prod %>% 
+  else {                     # sans filtre granularite
+    prod_shem_prod %>%
       filter(Dates >= as.POSIXct(date_debut) & Dates <= as.POSIXct(date_fin)) %>%
-      select(one_of(var_selec))
+      group_by()
   }
+}
+
+#---------- Group_by tranche tarifaire, vient après le filter_granu
+
+filter_tranche <- function(prod_shem_prod, f_calcul, liste_var)
+{
+prod_shem_prod %>% 
+    group_by(Tranche) %>% 
+    summarise_at(liste_var, f_calcul)
 }
 
 #---------- Calcul des valos
@@ -247,7 +252,7 @@ server <- function(input, output)
         
         # -------------- Selection des variables à afficher
         
-        var_selec <- c("Dates", "Jour", "Semaine", "Mois", liste_gpmt) #Fonction flitre_granu : variables a selectionner
+        var_selec <- c("Dates", "Tranche", "Jour", "Semaine", "Mois", liste_gpmt) #Fonction flitre_granu : variables a selectionner
         liste_var <- liste_gpmt  #Fonction flitre_granu : Variables sur lesquelles effectuer le summarize final
       }
       else
@@ -262,9 +267,12 @@ server <- function(input, output)
       
       ifelse(input$puissance_ou_energie == "puissance", f_calcul <- mean, f_calcul <- sum)
       
-      # -------------- On filtre sur les usines ou les groupements
+      # -------------- On filtre sur les usines ou les groupements par granularité et tranche tarifaire
       
-      prod_shem_prod <- filter_granu(prod_shem_prod, input$granu, input$debut_fin[1], input$debut_fin[2], f_calcul, var_selec, liste_var)
+      prod_shem_prod  %>%  
+        filter_granu(input$granu, input$debut_fin[1], input$debut_fin[2], f_calcul, liste_var) %>% 
+        filter_tranche(f_calcul, liste_var) %>% #TEMPORAIRE
+        select(one_of(var_selec))
     },
     options = list(pageLength = 24)
   )
@@ -295,7 +303,7 @@ server <- function(input, output)
         
         # -------------- Selection des variables à afficher
         
-        var_selec <- c("Dates", "Granularite", liste_gpmt) #Fonction flitre_granu : variables a selectionner
+        var_selec <- c("Dates", "Granularite", liste_gpmt) #Fonction filtre_granu : variables a selectionner
         liste_var <- liste_gpmt  #Fonction flitre_granu : Variables sur lesquelles effectuer le summarize final
       }
       else
