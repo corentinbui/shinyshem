@@ -11,12 +11,13 @@ library(lubridate)
 
 prep_usines <- function()
 {
-  noms_usines_ossau <- c("Artouste_Lac", "Artouste_Usine", "Bious", "Pont_de_Camps", "Miegebat", "Hourat", "Geteu", "Castet", "Fabreges")
+  noms_usines_artouste <- c("Artouste_Lac", "Artouste_Usine", "Bious", "Pont_de_Camps")
+  noms_usines_hourat <- c("Miegebat", "Hourat", "Geteu", "Castet", "Fabreges")
   noms_usines_valentin <- c("Eaux_bonnes", "Assouste", "Espalungue")
   noms_usines_mareges <- c("Mareges_Usine", "Saint_Pierre", "Coindre")
   noms_usines_louron <- c("Lassoula", "Clarabide", "Lapes", "Pont_de_Prat", "Aube", "Pont_d_Estagnou")
   noms_usines_eget <- c("Eget_Usine", "Oule")
-  liste_usines <- c(noms_usines_ossau, noms_usines_valentin, noms_usines_mareges, noms_usines_louron, noms_usines_eget)
+  liste_usines <- c(noms_usines_artouste, noms_usines_hourat, noms_usines_valentin, noms_usines_mareges, noms_usines_louron, noms_usines_eget)
   return(liste_usines)
 }
 
@@ -29,7 +30,7 @@ prep_col <- function(liste_usines)
 
 prep_gpmt <- function()
 {
-  return(liste_gpmt <- c(rep("Ossau", 9), rep("Valentin", 3), rep("Mareges", 3), rep("Louron", 6), rep("Eget", 2)))
+  return(liste_gpmt <- c(rep("Artouste", 4), rep("Hourat", 5), rep("Valentin", 3), rep("Mareges", 3), rep("Louron", 6), rep("Eget", 2)))
 }
 
 prep_attr <- function(noms_colonnes, liste_gpmt)
