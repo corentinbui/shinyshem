@@ -78,8 +78,8 @@ ui <- fluidPage(
                                      ),
                                      radioButtons(inputId = "puissance_ou_energie",
                                                   label = "Mode de calcul de la production",
-                                                  choices = c("Puissance moyenne (MW)" = "puissance",
-                                                              "Energie cumulee (MWh)" = "energie"),
+                                                  choices = c("Puissance moyenne (MW) / Prix moyens (€/MWh)" = "puissance",
+                                                              "Energie cumulee (MWh) (cache les prix)" = "energie"),
                                                   selected = "puissance"
                                      ),
                                      radioButtons(inputId = "usine_ou_gpmt",

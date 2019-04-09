@@ -50,12 +50,6 @@ load_local <- function(path) {
   return(prod_shem)
 }
 
-# load_web <- function(file) {
-#   path <- "https://raw.githubusercontent.com/corentinbui/shinyshem/master/"
-#   prod_shem <- read.csv2(c(path, file))
-#   return(prod_shem)
-# }
-
 prep_shem <- function(prod_shem, liste_usines, noms_col, granu)
 {
   colnames(prod_shem) <- noms_col #On renomme les colonnes
@@ -77,14 +71,13 @@ prep_shem <- function(prod_shem, liste_usines, noms_col, granu)
 
 # ------------------------ Selection des colonnes
 
-selection_var <- function(prix, gpmt, noms_colonnes, attributs_col)
+selection_var <- function(selec_col, noms_colonnes, attributs_col)
 {
-  selec_gpmt <- c(prix, gpmt)
-  var_selec <- c("Dates", "Tranche", "Annee", "Jour", "Semaine", "Mois") #On sélectionne au moins la date et la granularite si elle existe ainsi que la tranche tarifaire
+  selec_var <- c()
   for(nom_colonne in noms_colonnes) {
-    if(attributs_col["noms_gpmt", nom_colonne] %in% selec_gpmt) {var_selec <- c(var_selec, nom_colonne)}
+    if(attributs_col["noms_gpmt", nom_colonne] %in% selec_col) {selec_var <- c(selec_var, nom_colonne)}
   }
-  return(var_selec)
+  return(selec_var)
 }
 
 #---------- Choix de la granularite
@@ -136,38 +129,6 @@ filter_col <- function(prod_shem, f_calcul, liste_var, col)
     group_by_at(vars(!!col)) %>%
     summarise_at(liste_var, f_calcul)
 }
-
-#---------- Filtre sur la granularite et la tranche tarifaire
-
-filter_granu_tranche <- function(prod_shem, granu, f_calcul, liste_var, tranche, agreg)
-{
-  if(tranche == TRUE) {      #avec filtre sur la tranche tarifaire
-    prod_shem %>%
-      group_by(Annee = lubridate::year(Dates), Tranche) %>%
-      summarise_at(liste_var, f_calcul)
-  }
-  else
-  {
-    if(granu != "Heure") {     #avec filtre granularite
-      prod_shem %>%
-        group_by(Annee = lubridate::year(Dates), !!granu := f_granu(Dates, granu)) %>% #!!granu := permet de nommer dynamiquement la colonne de granularite (jour, semaine...)
-        summarise_at(liste_var, f_calcul)
-    }
-    else{return(prod_shem)}
-  }
-}
-
-#---------- Group_by tranche tarifaire, vient après le filter_granu
-
-# filter_tranche <- function(prod_shem, f_calcul, liste_var, tranche)
-# {
-#   if(tranche == TRUE) {
-#     prod_shem %>% 
-#       group_by(Tranche) %>% 
-#       summarise_at(liste_var, f_calcul)
-#   }
-#   else {return(prod_shem)}
-# }
 
 #---------- Calcul des valos
 
@@ -232,9 +193,7 @@ server <- function(input, output)
   prod_shem <- reactive({
     
     # ----------------- Import des donnees de prod --- pas de dplyr à cause du colnames que je sais pas faire
-    # input$action_github #Appui sur le bouton download dans le cas du load_web
     prod_shem_import <- load_local(input$fichier_data$datapath)
-    # prod_shem_import <- load_web(file = input$fichier_github)
     prod_shem_import <- prep_shem(prod_shem_import, liste_usines, noms_col, input$granu)
     return(prod_shem_import)
   })
@@ -286,6 +245,18 @@ server <- function(input, output)
       req(input$fichier_data)
       prod_shem_prod <- prod_shem()
       
+      # -------------- Initialisation des variables à afficher
+      
+      liste_prix <- selection_var(selec_col = input$selec_prix, noms_col, attr_col)
+      var_selec <- c("Dates", "Tranche", "Jour", "Semaine", "Mois", "Annee") 
+      liste_var <- c()
+      
+      if(input$puissance_ou_energie == "puissance") #Si on calcule en moyenne, on affiche les prix (en somme ça n'a plus de sens)
+      {
+        var_selec <- c(var_selec, liste_prix)
+        liste_var <- liste_prix
+      }
+      
       # --------------------- Affichage du tableau filtre sur la granularite et/ou les groupements
       
       if(input$usine_ou_gpmt == "gpmt")
@@ -298,15 +269,15 @@ server <- function(input, output)
         
         # -------------- Selection des variables à afficher
         
-        var_selec <- c("Dates", "Tranche", "Jour", "Semaine", "Mois", "Annee", liste_gpmt) #Fonction flitre_granu : variables a selectionner
-        liste_var <- liste_gpmt  #Fonction flitre_granu : Variables sur lesquelles effectuer le summarize final
+        var_selec <- c(var_selec, liste_gpmt) #Fonction flitre_granu : variables a selectionner
+        liste_var <- c(liste_var, liste_gpmt)  #Fonction flitre_granu : Variables sur lesquelles effectuer le summarize final
       }
       else
       {
         # -------------- Selection des variables à afficher 
         
-        var_selec <- selection_var(prix = input$selec_prix, gpmt = input$selec_gpmt, noms_colonnes = noms_col, attributs_col = attr_col)
-        liste_var <- liste_usines #Variables sur lesquelles effectuer le summarize final
+        var_selec <- c(var_selec, selection_var(selec_col = input$selec_gpmt, noms_col, attr_col))
+        liste_var <- c(liste_var, liste_usines) #Variables sur lesquelles effectuer le summarize final
       }
       
       # ----------------- Somme ou moyenne selon si on calcule en energie ou puissance
