@@ -56,12 +56,14 @@ load_local <- function(path) {
 #   return(prod_shem)
 # }
 
-prep_shem <- function(prod_shem, liste_usines, noms_col)
+prep_shem <- function(prod_shem, liste_usines, noms_col, granu)
 {
   colnames(prod_shem) <- noms_col #On renomme les colonnes
   prod_shem[, liste_usines] = apply(prod_shem[, liste_usines], 2, as.numeric) #On force tout en numérique, même si ça échoue lamentablement
   prod_shem <- prod_shem %>% 
     mutate(Dates = as.POSIXct(Dates, format = "%d/%m/%Y %H:%M")) %>%  #Formatage des dates
+    mutate(Annee = lubridate::year(Dates)) %>% #Ajout d'une colonne "Annee"
+    mutate(!!granu := f_granu(Dates, granu)) %>% #Ajout d'une colonne "granu" (dynamique)
     mutate("temp_peak" = ifelse(hour(Dates) >= 8 & hour(Dates) < 20, "peak", "base")) %>% #peak entre 8h et 20h 365
     mutate("temp_hc_hp" = ifelse(hour(Dates) >= 6 & hour(Dates) < 22, "HP", "HC")) %>% #heures de pointe entre 6 et 22h, heures creuses sinon, 365
     mutate("temp_ete_hiver" = ifelse(month(Dates) >= 4 & month(Dates) <= 10, "été", "hiver")) %>%  #ete d'avril à octobre inclus, hiver sinon
@@ -97,31 +99,75 @@ f_granu <- function(x, granularity)
   )
 }
 
-#---------- Filtre sur la granularite
+#---------- Filtre sur les dates
 
-filter_granu <- function(prod_shem_prod, granu, date_debut, date_fin, f_calcul, liste_var)
+filter_dates <-function(prod_shem, date_debut, date_fin)
 {
-  if(granu != "Heure") {     #avec filtre granularite
-    prod_shem_prod %>%
-      filter(Dates >= as.POSIXct(date_debut) & Dates <= as.POSIXct(date_fin)) %>%
-      group_by(Annee = lubridate::year(Dates), !!granu := f_granu(Dates, granu)) %>% #!!granu := permet de nommer dynamiquement la colonne de granularite (jour, semaine...)
+  prod_shem %>%
+    filter(Dates >= as.POSIXct(date_debut) & Dates <= as.POSIXct(date_fin))
+}
+
+#---------- Ajout de colonnes intermédiaires utiles pour le group_by (Année et Granularité)
+
+ajout_col_granu <- function(prod_shem, granu)
+{
+  prod_shem  %>% 
+    mutate(!!granu := f_granu(Dates, granu))
+}
+
+#---------- Construction de la liste des colonnes pour group_by
+
+col_groupby <- function(tranche, agreg, granu)
+{
+  col <- c()
+  if(agreg == "Annee") {col <- c("Annee", col)}
+  if(tranche == TRUE) {col <- c(col, "Tranche")}
+  else{
+    ifelse(granu != "Heure", col <- c(col, granu), col <- c("Dates")) #col Dates si on est en granularité horaire : pas de filtre temporel
+  }
+  return(col)
+}
+
+#---------- Filtre avec col groupby
+
+filter_col <- function(prod_shem, f_calcul, liste_var, col)
+{
+  prod_shem %>%
+    group_by_at(vars(!!col)) %>%
+    summarise_at(liste_var, f_calcul)
+}
+
+#---------- Filtre sur la granularite et la tranche tarifaire
+
+filter_granu_tranche <- function(prod_shem, granu, f_calcul, liste_var, tranche, agreg)
+{
+  if(tranche == TRUE) {      #avec filtre sur la tranche tarifaire
+    prod_shem %>%
+      group_by(Annee = lubridate::year(Dates), Tranche) %>%
       summarise_at(liste_var, f_calcul)
   }
-  else {                     # sans filtre granularite
-    prod_shem_prod %>%
-      filter(Dates >= as.POSIXct(date_debut) & Dates <= as.POSIXct(date_fin)) %>%
-      group_by()
+  else
+  {
+    if(granu != "Heure") {     #avec filtre granularite
+      prod_shem %>%
+        group_by(Annee = lubridate::year(Dates), !!granu := f_granu(Dates, granu)) %>% #!!granu := permet de nommer dynamiquement la colonne de granularite (jour, semaine...)
+        summarise_at(liste_var, f_calcul)
+    }
+    else{return(prod_shem)}
   }
 }
 
 #---------- Group_by tranche tarifaire, vient après le filter_granu
 
-filter_tranche <- function(prod_shem_prod, f_calcul, liste_var)
-{
-prod_shem_prod %>% 
-    group_by(Tranche) %>% 
-    summarise_at(liste_var, f_calcul)
-}
+# filter_tranche <- function(prod_shem, f_calcul, liste_var, tranche)
+# {
+#   if(tranche == TRUE) {
+#     prod_shem %>% 
+#       group_by(Tranche) %>% 
+#       summarise_at(liste_var, f_calcul)
+#   }
+#   else {return(prod_shem)}
+# }
 
 #---------- Calcul des valos
 
@@ -189,7 +235,7 @@ server <- function(input, output)
     # input$action_github #Appui sur le bouton download dans le cas du load_web
     prod_shem_import <- load_local(input$fichier_data$datapath)
     # prod_shem_import <- load_web(file = input$fichier_github)
-    prod_shem_import <- prep_shem(prod_shem_import, liste_usines, noms_col)
+    prod_shem_import <- prep_shem(prod_shem_import, liste_usines, noms_col, input$granu)
     return(prod_shem_import)
   })
   
@@ -252,7 +298,7 @@ server <- function(input, output)
         
         # -------------- Selection des variables à afficher
         
-        var_selec <- c("Dates", "Tranche", "Jour", "Semaine", "Mois", liste_gpmt) #Fonction flitre_granu : variables a selectionner
+        var_selec <- c("Dates", "Tranche", "Jour", "Semaine", "Mois", "Annee", liste_gpmt) #Fonction flitre_granu : variables a selectionner
         liste_var <- liste_gpmt  #Fonction flitre_granu : Variables sur lesquelles effectuer le summarize final
       }
       else
@@ -267,12 +313,22 @@ server <- function(input, output)
       
       ifelse(input$puissance_ou_energie == "puissance", f_calcul <- mean, f_calcul <- sum)
       
+      # -------------- Construction des colonnes pour les group_by
+      
+      col <- col_groupby(input$tranche, input$agreg, input$granu)
+      print(col)
+      
+      prod_shem_prod  %>%
+        filter_dates(input$debut_fin[1], input$debut_fin[2]) %>%
+        filter_col(f_calcul, liste_var, col) %>%
+        select(one_of(var_selec))
+      
       # -------------- On filtre sur les usines ou les groupements par granularité et tranche tarifaire
       
-      prod_shem_prod  %>%  
-        filter_granu(input$granu, input$debut_fin[1], input$debut_fin[2], f_calcul, liste_var) %>% 
-        filter_tranche(f_calcul, liste_var) %>% #TEMPORAIRE
-        select(one_of(var_selec))
+      # prod_shem_prod  %>%  
+      #   filter_dates(input$debut_fin[1], input$debut_fin[2]) %>% 
+      #   filter_granu_tranche(input$granu, f_calcul, liste_var, input$tranche, input$agreg) %>%
+      #   select(one_of(var_selec))
     },
     options = list(pageLength = 24)
   )
@@ -314,23 +370,12 @@ server <- function(input, output)
         liste_var <- liste_usines #Variables sur lesquelles effectuer le summarize final
       }
       
-      # -------------- On filtre sur les usines ou les groupements
+      # -------------- Filtre sur les dates, la granularité, puis sélection des usines ou des groupements
       
-      prod_shem_valo <- filter_granu(prod_shem_valo, input$granu, input$debut_fin[1], input$debut_fin[2], sum, var_selec, liste_var)
-      
-      
-      # # -------------- Selection des variables à afficher 
-      # 
-      # var_selec <- selection_var(prix = input$selec_prix, gpmt = input$selec_gpmt, noms_colonnes = noms_col, attributs_col = attr_col)
-      # 
-      # # -------------- Calcul des valos horaires
-      # 
-      # prod_shem_valo <- calcul_valo(prod_shem_valo, attr_col, liste_usines)
-      # 
-      # # --------------------- Affichage du tableau avec ou sans filtre granuralite
-      # 
-      # prod_shem_valo <- filter_granu(prod_shem_valo, input$granu, input$debut_fin[1], input$debut_fin[2], sum, var_selec, liste_usines)
-      
+      prod_shem_valo %>% 
+        filter_dates(input$debut_fin[1], input$debut_fin[2]) %>% 
+        filter_granu(input$granu, sum, liste_var) %>% 
+        select(one_of(var_selec))
     },
     options = list(pageLength = 24)
   )

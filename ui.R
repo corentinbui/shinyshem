@@ -66,6 +66,16 @@ ui <- fluidPage(
                                                               "Annee"),
                                                   selected = "Heure"
                                      ),
+                                     conditionalPanel(condition = "input.granu == 'Annee'",
+                                                      checkboxInput(inputId = "tranche", 
+                                                                    label = "Tranche tarifaire (uncheck after use)")
+                                     ),
+                                     radioButtons(inputId = "agreg",
+                                                  label = "Agregation temporelle",
+                                                  choices = c("Annee",
+                                                              "Historique"),
+                                                  selected = "Annee"
+                                     ),
                                      radioButtons(inputId = "puissance_ou_energie",
                                                   label = "Mode de calcul de la production",
                                                   choices = c("Puissance moyenne (MW)" = "puissance",
