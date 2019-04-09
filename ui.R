@@ -77,9 +77,9 @@ ui <- fluidPage(
                                                   selected = "Annee"
                                      ),
                                      radioButtons(inputId = "puissance_ou_energie",
-                                                  label = "Mode de calcul de la production",
-                                                  choices = c("Puissance moyenne (MW) / Prix moyens (€/MWh)" = "puissance",
-                                                              "Energie cumulee (MWh) (cache les prix)" = "energie"),
+                                                  label = "Mode de calcul prod et valo",
+                                                  choices = c("Puissance (MW) - Valo moyenne (€) - Prix moyens (€/MWh)" = "puissance",
+                                                              "Energie (MWh) - Valo cumulee (€)" = "energie"),
                                                   selected = "puissance"
                                      ),
                                      radioButtons(inputId = "usine_ou_gpmt",
@@ -101,6 +101,20 @@ ui <- fluidPage(
                                                                          "Louron",
                                                                          "Eget"),
                                                         selected = list("Ossau", "Valentin", "Mareges", "Louron", "Eget")
+                                     ),
+                                     checkboxGroupInput(inputId = "selec_tarif",
+                                                        label = "Selection par tarification",
+                                                        choiceNames = c("Spot",
+                                                                        "OA 1C",
+                                                                        "OA 2C",
+                                                                        "OA 4C",
+                                                                        "OA 5C"),
+                                                        choiceValues = c("Prix_spot",
+                                                                         "Prix_OA1C",
+                                                                         "Prix_OA2C",
+                                                                         "Prix_OA4C",
+                                                                         "Prix_OA5C"),
+                                                        selected = list("Prix_spot", "Prix_OA1C", "Prix_OA2C", "Prix_OA4C", "Prix_OA5C")
                                      )),
                         mainPanel(
                           navbarPage(
