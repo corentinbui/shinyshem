@@ -72,11 +72,11 @@ prep_shem <- function(prod_shem, liste_usines, noms_col, granu)
 
 # ------------------------ Selection des colonnes
 
-selection_var <- function(selec_col, noms_colonnes, attributs_col)
+selection_var <- function(selec_col, noms_colonnes, attributs_col, noms = "noms_gpmt")
 {
   selec_var <- c()
   for(nom_colonne in noms_colonnes) {
-    if(attributs_col["noms_gpmt", nom_colonne] %in% selec_col) {selec_var <- c(selec_var, nom_colonne)}
+    if(attributs_col[noms, nom_colonne] %in% selec_col) {selec_var <- c(selec_var, nom_colonne)}
   }
   return(selec_var)
 }
@@ -224,15 +224,17 @@ server <- function(input, output)
       
       # -------------- Selection des variables à afficher
       
-      var_selec <- c(var_selec, liste_gpmt) #Fonction flitre_granu : variables a selectionner
-      liste_var <- c(liste_var, liste_gpmt)  #Fonction flitre_granu : Variables sur lesquelles effectuer le summarize final
+      var_selec <- c(var_selec, liste_gpmt) #Variables à afficher à la fin
+      liste_var <- c(liste_var, liste_gpmt)  #Variables sur lesquelles effectuer le summarize_at final
     }
     else
     {
       # -------------- Selection des variables à afficher 
       
-      var_selec <- c(var_selec, selection_var(selec_col = input$selec_gpmt, noms_col, attr_col))
-      liste_var <- c(liste_var, liste_usines) #Variables sur lesquelles effectuer le summarize final
+      selec_par_gpmt <- selection_var(input$selec_gpmt, noms_col, attr_col, "noms_gpmt")
+      selec_par_tarif <- selection_var(input$selec_tarif, noms_col, attr_col, "noms_tarifs")
+      var_selec <- c(var_selec, intersect(selec_par_gpmt, selec_par_tarif)) #Variables à afficher à la fin
+      liste_var <- c(liste_var, liste_usines) #Variables sur lesquelles effectuer le summarize_at final
     }
     
     # ----------------- Somme ou moyenne selon si on calcule en energie ou puissance
@@ -308,13 +310,12 @@ server <- function(input, output)
       prod_shem_prod  %>%
         filter_dates(input$debut_fin[1], input$debut_fin[2]) %>%
         calcul_par_grpm(input$selec_gpmt, input$usine_ou_gpmt, liste_usines, attr_col) %>% #liste_usines et attr_col sont des variables globales construites en début de script
-        filter_col(f_calcul, liste_var, col_groupby) %>%
+        filter_col(f_calcul, liste_var, col_groupby) %>% #group_by selon la granularité, les tranches tarifaires, le mode d'agrégation temporelle
         select(one_of(var_selec))
     },
-    options = list(pageLength = 24)
+    options = list(pageLength = 53) 
+  ) %>% formatRound(columns = -1, digits = 3) #Affichage de 2 chiffres après la virgule, je ne sais pas comment sélectionner toutes les colonnes...
   )
-  )
-  
   
   # -------------- Affichage de la datatable de valo 
   
@@ -323,10 +324,6 @@ server <- function(input, output)
       # ---------------
       req(input$fichier_data)
       prod_shem_valo <- prod_shem()
-      
-      # -------------- Calcul des valos horaires
-      
-      prod_shem_valo <- calcul_valo(prod_shem_valo, attr_col, liste_usines)
       
       # --------------- Sélection des variables pour le group_by, pour l'affichage, choix de la fonction calcul
       
@@ -339,11 +336,12 @@ server <- function(input, output)
       
       prod_shem_valo %>%
         filter_dates(input$debut_fin[1], input$debut_fin[2]) %>%
+        calcul_valo(attr_col, liste_usines) %>% # Calcul des valos
         calcul_par_grpm(input$selec_gpmt, input$usine_ou_gpmt, liste_usines, attr_col) %>% #liste_usines et attr_col sont des variables globales construites en début de script
-        filter_col(f_calcul, liste_var, col_groupby) %>%
+        filter_col(f_calcul, liste_var, col_groupby) %>% #group_by selon la granularité, les tranches tarifaires, le mode d'agrégation temporelle
         select(one_of(var_selec))
     },
     options = list(pageLength = 24)
-  )
+  ) %>% formatRound(columns = -1, digits = 3) #Affichage de 2 chiffres après la virgule, je ne sais pas comment sélectionner toutes les colonnes...
   )
 }
