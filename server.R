@@ -216,7 +216,10 @@ server <- function(input, output)
       liste_var <- liste_prix
     }
     
-    # --------------------- Affichage du tableau filtre sur la granularite et/ou les groupements
+    # --------------------- Sélection des variables
+    
+    selec_par_tarif <- selection_var(input$selec_tarif, noms_col, attr_col, "noms_tarifs") #Usines filtrées par tarification
+    selec_usines <- selec_par_tarif #Usines filtrées par tarif d'abord, éventuellement par groupement ensuite
     
     if(input$usine_ou_gpmt == "gpmt")
     {
@@ -231,10 +234,10 @@ server <- function(input, output)
     {
       # -------------- Selection des variables à afficher 
       
-      selec_par_gpmt <- selection_var(input$selec_gpmt, noms_col, attr_col, "noms_gpmt")
-      selec_par_tarif <- selection_var(input$selec_tarif, noms_col, attr_col, "noms_tarifs")
-      var_selec <- c(var_selec, intersect(selec_par_gpmt, selec_par_tarif)) #Variables à afficher à la fin
-      liste_var <- c(liste_var, liste_usines) #Variables sur lesquelles effectuer le summarize_at final
+      selec_par_gpmt <- selection_var(input$selec_gpmt, noms_col, attr_col, "noms_gpmt") #Usines filtrées par groupement
+      selec_usines <- intersect(selec_par_gpmt, selec_par_tarif) #Usines filtrées par tarif ET par groupement
+      var_selec <- c(var_selec, selec_usines) #Variables à afficher à la fin
+      liste_var <- c(liste_var, selec_usines) #Variables sur lesquelles effectuer le summarize_at final
     }
     
     # ----------------- Somme ou moyenne selon si on calcule en energie ou puissance
@@ -247,7 +250,7 @@ server <- function(input, output)
     
     # --------------- Rangement dans une liste à retourner
     
-    liste_retour <- list("var_selec" = var_selec, "liste_var" = liste_var, "f_calcul" = f_calcul, "col_groupby" = col)
+    liste_retour <- list("var_selec" = var_selec, "liste_var" = liste_var, "f_calcul" = f_calcul, "col_groupby" = col, "selec_usines" = selec_usines)
     return(liste_retour)
   })
   
@@ -304,12 +307,13 @@ server <- function(input, output)
       liste_var <- selec_variables()$liste_var
       f_calcul <- selec_variables()$f_calcul
       col_groupby <- selec_variables()$col_groupby
+      selec_usines <- selec_variables()$selec_usines
       
       # -------------- Filtre sur les usines ou les groupements par granularité et tranche tarifaire, agregation par groupement
       
       prod_shem_prod  %>%
         filter_dates(input$debut_fin[1], input$debut_fin[2]) %>%
-        calcul_par_grpm(input$selec_gpmt, input$usine_ou_gpmt, liste_usines, attr_col) %>% #liste_usines et attr_col sont des variables globales construites en début de script
+        calcul_par_grpm(input$selec_gpmt, input$usine_ou_gpmt, selec_usines, attr_col) %>% #attr_col est une variables globales construites en début de script
         filter_col(f_calcul, liste_var, col_groupby) %>% #group_by selon la granularité, les tranches tarifaires, le mode d'agrégation temporelle
         select(one_of(var_selec))
     },
@@ -331,13 +335,14 @@ server <- function(input, output)
       liste_var <- selec_variables()$liste_var
       f_calcul <- selec_variables()$f_calcul
       col_groupby <- selec_variables()$col_groupby
+      selec_usines <- selec_variables()$selec_usines
       
       # -------------- Filtre sur les usines ou les groupements par granularité et tranche tarifaire
       
       prod_shem_valo %>%
         filter_dates(input$debut_fin[1], input$debut_fin[2]) %>%
-        calcul_valo(attr_col, liste_usines) %>% # Calcul des valos
-        calcul_par_grpm(input$selec_gpmt, input$usine_ou_gpmt, liste_usines, attr_col) %>% #liste_usines et attr_col sont des variables globales construites en début de script
+        calcul_valo(attr_col, selec_usines) %>% # Calcul des valos
+        calcul_par_grpm(input$selec_gpmt, input$usine_ou_gpmt, selec_usines, attr_col) %>% #liste_usines et attr_col sont des variables globales construites en début de script
         filter_col(f_calcul, liste_var, col_groupby) %>% #group_by selon la granularité, les tranches tarifaires, le mode d'agrégation temporelle
         select(one_of(var_selec))
     },

@@ -23,7 +23,7 @@ ui <- fluidPage(
                                      #              label = "Download")
                         ),
                         mainPanel(
-                          strong("Se rendre dans les onglets de donnees pour la visualisation complete"),
+                          strong("Se rendre dans Tableaux de prod et valo pour la visualisation complete"),
                           br(),
                           br(),
                           textOutput("dim_table"),
@@ -78,7 +78,7 @@ ui <- fluidPage(
                                      ),
                                      radioButtons(inputId = "puissance_ou_energie",
                                                   label = "Mode de calcul prod et valo",
-                                                  choices = c("Puissance (MW) - Valo moyenne (€) - Prix moyens (€/MWh)" = "puissance",
+                                                  choices = c("Puissance (MW) - Valo horaire moyenne (€) - Prix moyens (€/MWh)" = "puissance",
                                                               "Energie (MWh) - Valo cumulee (€)" = "energie"),
                                                   selected = "puissance"
                                      ),
@@ -89,7 +89,7 @@ ui <- fluidPage(
                                                   selected = "usine"
                                      ),
                                      checkboxGroupInput(inputId = "selec_gpmt",
-                                                        label = "Selection des groupements",
+                                                        label = "Selection par groupement",
                                                         choiceNames = c("Ossau",
                                                                         "Valentin",
                                                                         "Mareges",
